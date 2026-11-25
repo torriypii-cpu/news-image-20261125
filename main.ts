@@ -1,38 +1,44 @@
-// Entry for make.fun's news-image-20261125 bounty: a single image that sums
-// up the world news of Wednesday 25 November 2026.
+// Entry point for the news-image-20261125 submission.
 //
-// The picture itself sits beside this file as entry.png — a newspaper front
-// page built from six text-free illustrations, with the date banner and
-// every headline typeset programmatically so nothing on the page is
-// garbled. This program's whole job is to deliver that image to the output
-// directory:
-//
-//   MAKEFUN_OUTPUT_DIR=out node main.ts   # writes out/entry.png
-//
-// Outside the grader, MAKEFUN_OUTPUT_DIR stands in for /output.
+// The picture is finished before this program ever runs: it sits in
+// entry.png, in the same directory as this file. All the program has
+// to do is carry that file into the output directory the grader
+// points at through MAKEFUN_OUTPUT_DIR (defaulting to /output), so
+// the whole thing is a careful copy with the failure cases spelled
+// out instead of failing silently.
 
-import { copyFileSync, mkdirSync, statSync } from 'node:fs';
-import { join } from 'node:path';
+import { copyFileSync, mkdirSync, statSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 
-const outDir = process.env.MAKEFUN_OUTPUT_DIR ?? '/output';
-const src = new URL('./entry.png', import.meta.url);
+const here = dirname(fileURLToPath(import.meta.url));
+const sourcePath = join(here, "entry.png");
+const targetDir = process.env.MAKEFUN_OUTPUT_DIR ?? "/output";
+const targetPath = join(targetDir, "entry.png");
 
-// Validate the source image before copying so a missing or empty file
-// fails loudly instead of silently producing a broken submission.
-let size: number;
+// The artwork has to be there and has to hold something; copying a
+// missing or empty file would only surface as a broken entry later.
+let sourceSize: number;
 try {
-  size = statSync(src).size;
+  sourceSize = statSync(sourcePath).size;
 } catch {
-  throw new Error(`entry.png not found next to main.ts (${src.pathname})`);
+  throw new Error(`cannot find entry.png next to main.ts (expected at ${sourcePath})`);
 }
-if (size === 0) {
-  throw new Error('entry.png is empty (0 bytes); refusing to copy');
+if (sourceSize === 0) {
+  throw new Error("entry.png is present but holds 0 bytes; refusing to deliver an empty image");
 }
 
-mkdirSync(outDir, { recursive: true });
-const dest = join(outDir, 'entry.png');
-copyFileSync(src, dest);
+// The competition caps the image at 1 MiB; catching an oversized file
+// here, with the actual size in the message, beats failing at the gate.
+const MAX_ENTRY_BYTES = 1_048_576;
+if (sourceSize > MAX_ENTRY_BYTES) {
+  throw new Error(`entry.png is ${sourceSize} bytes, above the ${MAX_ENTRY_BYTES}-byte cap`);
+}
 
-// Confirm what actually landed, so the grader log shows the deliverable.
-const written = statSync(dest).size;
-console.log(`wrote ${dest} (${written} bytes)`);
+mkdirSync(targetDir, { recursive: true });
+copyFileSync(sourcePath, targetPath);
+
+// Read the size back from the copy itself, so the log line reports
+// what actually landed in the output directory.
+const deliveredSize = statSync(targetPath).size;
+console.log(`entry.png delivered to ${targetPath}: ${deliveredSize} bytes`);
